@@ -1,0 +1,240 @@
+{
+ "appConfig": {},
+ "application": "sampleapp",
+ "id": "1eca1c06-94c3-44fe-96da-ea55812ff7ee",
+ "index": 12,
+ "keepWaitingPipelines": false,
+ "lastModifiedBy": "admin",
+ "limitConcurrent": true,
+ "name": "mahesh-spin2argo",
+ "parameterConfig": [
+  {
+   "default": "1",
+   "description": "",
+   "hasOptions": true,
+   "label": "",
+   "name": "replicaCount",
+   "options": [
+    {
+     "value": "1"
+    },
+    {
+     "value": "2"
+    },
+    {
+     "value": "3"
+    }
+   ],
+   "pinned": true,
+   "required": true
+  },
+  {
+   "default": "OP-1234",
+   "description": "JIRA ID that could come from the pipeline or from Jenkins",
+   "hasOptions": false,
+   "label": "JiraID",
+   "name": "JIRAID",
+   "options": [
+    {
+     "value": ""
+    }
+   ],
+   "pinned": false,
+   "required": true
+  },
+  {
+   "default": "nginx:1.14.3",
+   "description": "",
+   "hasOptions": true,
+   "label": "image",
+   "name": "IMAGEID",
+   "options": [
+    {
+     "value": "nginx:1.14.1"
+    },
+    {
+     "value": "nginx:1.14.0"
+    }
+   ],
+   "pinned": false,
+   "required": true
+  }
+ ],
+ "schema": "1",
+ "spelEvaluator": "v4",
+ "stages": [
+  {
+   "account": "default",
+   "cloudProvider": "kubernetes",
+   "manifests": [
+    {
+     "apiVersion": "batch/v1",
+     "kind": "Job",
+     "metadata": {
+      "generateName": "spin2argo-"
+     },
+     "spec": {
+      "backoffLimit": 4,
+      "template": {
+       "spec": {
+        "containers": [
+         {
+          "command": [
+           "bash",
+           "/tmp/spin2argo.sh"
+          ],
+          "envFrom": [
+           {
+            "configMapRef": {
+             "name": "spin2argo-config",
+             "optional": false
+            }
+           },
+           {
+            "secretRef": {
+             "name": "git-secret-spingit"
+            }
+           }
+          ],
+          "image": "quay.io/opsmxpublic/spin2argo:rc-1",
+          "name": "osd-spinnaker-rewrite",
+          "volumeMounts": [
+           {
+            "mountPath": "/tmp/spin2argo.sh",
+            "name": "spin2argo-script",
+            "subPath": "spin2argo.sh"
+           }
+          ]
+         }
+        ],
+        "restartPolicy": "Never",
+        "volumes": [
+         {
+          "configMap": {
+           "items": [
+            {
+             "key": "spin2argo.sh",
+             "path": "spin2argo.sh"
+            }
+           ],
+           "name": "spin2argo-script"
+          },
+          "name": "spin2argo-script"
+         }
+        ]
+       }
+      }
+     }
+    }
+   ],
+   "moniker": {
+    "app": "sampleapp"
+   },
+   "name": "push-to-git",
+   "namespaceOverride": "target",
+   "refId": "1",
+   "requisiteStageRefIds": [
+    "2"
+   ],
+   "skipExpressionEvaluation": false,
+   "source": "text",
+   "trafficManagement": {
+    "enabled": false,
+    "options": {
+     "enableTraffic": false,
+     "services": []
+    }
+   },
+   "type": "deployManifest"
+  },
+  {
+   "account": "default",
+   "cloudProvider": "kubernetes",
+   "manifests": [
+    {
+     "apiVersion": "v1",
+     "data": {
+      "filePath": "sample-deploy.yaml",
+      "source": "https://github.com/OpsMx/demo-spin2argo.git",
+      "sourcebranch": "main",
+      "target": "https://github.com/OpsMx/demo-spin2argo.git",
+      "value": ".metadata.annotations.jiraid = \"${ parameters[\"JIRAID\"]}\"|.spec.replicas = ${ parameters[\"replicaCount\"]}|.spec.template.spec.containers[0].image = \"${ parameters[\"IMAGEID\"]}\""
+     },
+     "kind": "ConfigMap",
+     "metadata": {
+      "name": "spin2argo-config"
+     }
+    }
+   ],
+   "moniker": {
+    "app": "sampleapp"
+   },
+   "name": "config-with-inputs",
+   "namespaceOverride": "target",
+   "refId": "2",
+   "requisiteStageRefIds": [
+    "3"
+   ],
+   "skipExpressionEvaluation": false,
+   "source": "text",
+   "trafficManagement": {
+    "enabled": false,
+    "options": {
+     "enableTraffic": false,
+     "services": []
+    }
+   },
+   "type": "deployManifest"
+  },
+  {
+   "account": "default",
+   "cloudProvider": "kubernetes",
+   "manifests": [
+    {
+     "apiVersion": "v1",
+     "data": {
+      "spin2argo.sh": "#! /bin/bash\nvalidate_clone() {\nif [ $? == 0 ]\nthen\n  echo \"INFO: Cloning done $SOURCE_REPO\"\nelse\n  echo \"ERROR: Cloning failed with repo $SOURCE_REPO, Please check credentials and repo access....\"\n  exit 5\nfi\n}\ntokenclone() {\n    clone_result=$(git clone https://$git_user:${git_token}@$SOURCE_API/$SOURCE_ORG/$SOURCE_REPO_PATH.git /tmp/$SOURCE_REPO_PATH -b \"$SOURCE_BRANCH\"  2\u003e /dev/null)\n    validate_clone\n}\n\nsshclone() {\n    apk add openssh \u003e /dev/null\n    mkdir -p ~/.ssh/\n    echo \"$GIT_SSH_KEY\" | tr -d '\\r' \u003e ~/.ssh/id_rsa\n    chmod 600 ~/.ssh/id_rsa\n    ssh-keyscan github.com \u003e\u003e ~/.ssh/known_hosts\n    clone_result=$(git clone git@$SOURCE_API:$SOURCE_ORG/$SOURCE_REPO_PATH.git /tmp/$SOURCE_REPO_PATH -b \"$SOURCE_BRANCH\"  2\u003e /dev/null)\n    validate_clone\n}\n\nrepochanges() {\n  cd \"$SOURCE_REPO_PATH\"\n  IFS=\"|\"\n  for i in $VALUES\n  do\n   echo value is $i\n   yq e -i \"$VALUES\" \"$MANIFEST_PATH\"\n   if [ $? != 0 ]; then\n   echo \"Error occured in YAML processing, please check the logs\"\n   exit 1\n   fi\n  done\n}\n\ngitcommitpush() {\n  git config --global user.email \"noreply@opsmx.io\"\n  git config --global user.name \"$git_user\"\n  git commit -am \"Autocommit to add ${VALUES[*]}\"\n  git push\n}\n\n##############################\n## script starts from here ###\n##############################\n\n## source the env\n\nenv \u003e /tmp/source.txt\nsource /tmp/source.txt 2\u003e /dev/null\n\n## Input variables from the Configmap\ncd /tmp/\nSOURCE_REPO=\"$source\"\nSOURCE_BRANCH=\"$sourcebranch\"\nTARGET_REPO=\"$source\"\nMANIFEST_PATH=\"$filePath\"\nVALUES=\"$value\"\nSOURCE_REPO_PATH=$(echo $SOURCE_REPO | awk -F// '{print $2}' | awk -F/ '{print $3}' | awk -F. '{print $1}')\nSOURCE_ORG=$(echo $SOURCE_REPO | awk -F// '{print $2}' | awk -F/ '{print $2}')\nSOURCE_API=$(echo $SOURCE_REPO | awk -F// '{print $2}' | awk -F/ '{print $1}')\n\nif [[ -z \"$SOURCE_REPO\" || -z \"$TARGET_REPO\"  ]]; then\n  echo \"ERROR: Source repo, target repo, path, and values must all be defined.\"\n  exit 1\nfi\nif [[ -z \"$SOURCE_BRANCH\" ]]; then\n  echo  \"ERROR: Not defined the branch, Please specify branch.\"\n  exit 1\nfi\n\nif [[ -z \"$MANIFEST_PATH\" ]]; then\n  echo  \"ERROR: YAML to be modified must be specified\"\n  exit 1\nfi\nif [[ -z \"$VALUES\" ]]; then\n  echo  \"ERROR: Not defined vaules to be replaced in the manifest \"\n  exit 1\nfi\n\nif [[ -z \"$GIT_SSH_KEY\" \u0026\u0026 -z \"$git_token\"  ]]; then\n  echo \"ERROR: Not defined github authendication token or SSH key .\"\n  exit 1\nelif [[ ! -z \"$GIT_SSH_KEY\" \u0026\u0026 ! -z \"$git_token\"  ]]; then\n  echo \"INFO: Defined both token and SSH, considering the token to clone ...\"\n  tokenclone\nelse\n  if [[ ! -z \"$git_token\" ]]; then\n    echo \"INFO: cloning using token...\"\n    tokenclone\n  fi\n  if [[ ! -z \"$GIT_SSH_KEY\" ]]; then\n    echo \"INFO: cloning using ssh...\"\n    sshclone\n  fi\nfi\ncd /tmp/\nrepochanges\ngitcommitpush\n"
+     },
+     "kind": "ConfigMap",
+     "metadata": {
+      "creationTimestamp": "2022-10-17T11:59:03Z",
+      "managedFields": [
+       {
+        "apiVersion": "v1",
+        "fieldsType": "FieldsV1",
+        "fieldsV1": {
+         "f:data": {
+          ".": {},
+          "f:spin2argo.sh": {}
+         }
+        },
+        "manager": "kubectl-create",
+        "operation": "Update",
+        "time": "2022-10-17T11:59:03Z"
+       }
+      ],
+      "name": "spin2argo-script"
+     }
+    }
+   ],
+   "moniker": {
+    "app": "sampleapp"
+   },
+   "name": "scriptyaml-config",
+   "namespaceOverride": "target",
+   "refId": "3",
+   "requisiteStageRefIds": [],
+   "skipExpressionEvaluation": false,
+   "source": "text",
+   "trafficManagement": {
+    "enabled": false,
+    "options": {
+     "enableTraffic": false,
+     "services": []
+    }
+   },
+   "type": "deployManifest"
+  }
+ ],
+ "triggers": []
+}

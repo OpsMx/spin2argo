@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: spin2argo-
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      containers:
+        - command:
+            - bash
+            - /tmp/spin2argo.sh
+          envFrom:
+            - configMapRef:
+                name: spin2argo-config
+                optional: false
+            - secretRef:
+                name: git-secret-mahesh
+          image: 'quay.io/opsmxpublic/spin2argo:rc-1'
+          name: osd-spinnaker-rewrite
+          volumeMounts:
+            - mountPath: /tmp/spin2argo.sh
+              name: spin2argo-script
+              subPath: spin2argo.sh
+      restartPolicy: Never
+      volumes:
+        - configMap:
+            items:
+              - key: spin2argo.sh
+                path: spin2argo.sh
+            name: spin2argo-script
+          name: spin2argo-script
