@@ -18,7 +18,7 @@ This pipeline edits a manifest files using the "yq" command on the required file
 ## steps to be followed
 
 **1. create a new pipeline with pipeline json**
-In ISD, go to sampleapp, new pipeline, edit as json, copy paste the spin2argo.json file, save
+In ISD, go to sampleapp, Create pipeline, save, configure, Edit Json, replace the contents with the contents of spin2argo.json file, save
 
 **2. Create a secret for github**
  -  Github Username and token or SSH key is required for updading the git reposotory. A kubernetes secret needs to be created
