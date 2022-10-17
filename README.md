@@ -34,9 +34,9 @@ To specifiy which file(s) to modify, we use a kubernetes configMap that specifie
  -  **filePath**     : file path e.g. sample-deploy.yaml 
  -  **value**: This represents the elements (yaml-paths) and their values that need to be updated. Sample file spin2argo-config.yaml gives an example 
    - Other examples are:   
-          imagename : .spec.template.spec.containers[0].image = "${parameters["IMAGEID"]}"
-          replicas  : .spec.replicas = ${ parameters["replicaCount"]}
-          annotation: .metadata.annotations.jiraid = "${ parameters["JIRAID"]}"
+       - imagename : .spec.template.spec.containers[0].image = "${parameters["IMAGEID"]}"
+       - replicas  : .spec.replicas = ${ parameters["replicaCount"]}
+       - annotation: .metadata.annotations.jiraid = "${ parameters["JIRAID"]}"
    - The "parameters" expression is explained in detail [here](https://spinnaker.io/docs/guides/user/pipeline/expressions/)
 
   **Multiple values can be defined with pipe character seperator**
